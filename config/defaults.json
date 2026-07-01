@@ -1,0 +1,24 @@
+{
+  "random_seed": 7,
+  "simulation_days": 45,
+  "customers": 180,
+  "max_events_per_day": 36,
+  "label_delay_days_min": 2,
+  "label_delay_days_max": 6,
+  "training": {
+    "learning_rate": 0.08,
+    "epochs": 220,
+    "l2": 0.0005,
+    "decision_threshold": 0.5,
+    "min_training_rows": 150
+  },
+  "promotion": {
+    "minimum_accuracy_gain": 0.002,
+    "maximum_log_loss_increase": 0.2
+  },
+  "retraining": {
+    "min_new_labels": 30,
+    "drift_threshold": 0.2,
+    "performance_floor": 0.68
+  }
+}
