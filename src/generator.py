@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 import random
 from uuid import uuid4
 
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import (
     StructType,
     StructField,
@@ -12,13 +12,38 @@ from pyspark.sql.types import (
     BooleanType,
     TimestampType,
 )
+from pyspark.sql.functions import col, lit, rand, when
 
 from src.data import *
 
 spark = SparkSession.builder.getOrCreate()
 
 
-def gerar_feature_store(spark, n_transacoes=10000, seed=42):
+def generate_fraud_labels(df: DataFrame) -> DataFrame:
+    """
+    Randomly assigns fraud labels:
+    - 45% True
+    - 45% False
+    - 10% NULL (unlabeled)
+    """
+
+    return (
+        df.withColumn("_rand", rand(seed=42))
+          .withColumn(
+              "fraude",
+              when(col("_rand") < 0.45, lit(True))
+               .when(col("_rand") < 0.90, lit(False))
+               .otherwise(lit(None).cast("boolean"))
+          )
+          .drop("_rand")
+    )
+
+
+def generate_feature_store_data(
+    spark: SparkSession,
+    n_transacoes: int = 10000,
+    seed: int = 42
+    ):
 
     random.seed(seed)
 
