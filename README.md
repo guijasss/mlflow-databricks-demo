@@ -49,6 +49,78 @@ curl -X POST http://127.0.0.1:8000/predict \
   -d '{"customer_id": "CUST-0001"}'
 ```
 
+## Batch Training And Inference
+
+The repository also includes two executable entrypoints for a Databricks / MLflow model lifecycle based on a feature store table that contains a nullable boolean column `fraude`.
+
+### `train.py`
+
+Training loads only rows where `fraude IS NOT NULL`, trains a challenger model using the preprocessing from `src/pipeline.py`, registers it in MLflow / Databricks, compares it to the current `champion`, and promotes the challenger when it achieves a better validation metric. The primary promotion metric is `average_precision`.
+
+Required inputs:
+
+* `FEATURE_TABLE`: source feature store table
+* `REGISTERED_MODEL_NAME`: registered model name, ideally `catalog.schema.model_name` in Unity Catalog
+
+Optional inputs:
+
+* `MLFLOW_EXPERIMENT_NAME`: MLflow experiment path/name
+* `MLFLOW_TRACKING_URI`: defaults to `databricks`
+* `MLFLOW_REGISTRY_URI`: defaults to `databricks-uc`
+* `MLFLOW_MODEL_ARTIFACT`: defaults to `fraud-model`
+* `VALIDATION_FRACTION`: defaults to `0.2`
+* `RANDOM_STATE`: defaults to `42`
+* `FRAUD_THRESHOLD`: defaults to `0.5`
+* `PROMOTION_METRIC`: defaults to `average_precision`
+
+Example:
+
+```bash
+FEATURE_TABLE=main.risk.feature_store_transacoes \
+REGISTERED_MODEL_NAME=main.risk.fraud_model \
+MLFLOW_EXPERIMENT_NAME=/Shared/fraud-training \
+python3 train.py
+```
+
+### `predict.py`
+
+Inference loads only rows where `fraude IS NULL`, fetches a model from MLflow / Databricks by alias, applies the same transformations from `src/pipeline.py`, and writes predictions to the output table `model_output` by default.
+
+Output columns:
+
+* `prediction_timestamp`
+* `model_name`
+* `model_alias`
+* `model_version`
+* `id_transacao`
+* `id_cliente`
+* `fraud_probability`
+* `predicted_fraude`
+* `classificacao_modelo`
+
+Required inputs:
+
+* `FEATURE_TABLE`
+* `REGISTERED_MODEL_NAME`
+
+Optional inputs:
+
+* `MODEL_OUTPUT_TABLE`: defaults to `model_output`
+* `MODEL_ALIAS`: defaults to `champion`
+* `MLFLOW_TRACKING_URI`: defaults to `databricks`
+* `MLFLOW_REGISTRY_URI`: defaults to `databricks-uc`
+* `FRAUD_THRESHOLD`: defaults to `0.5`
+* `MODEL_OUTPUT_WRITE_MODE`: `append` or `overwrite`, default `append`
+
+Example:
+
+```bash
+FEATURE_TABLE=main.risk.feature_store_transacoes \
+REGISTERED_MODEL_NAME=main.risk.fraud_model \
+MODEL_OUTPUT_TABLE=main.risk.model_output \
+python3 predict.py
+```
+
 ## Databricks alignment
 
 This implementation preserves the same responsibilities you would map into Databricks assets:
