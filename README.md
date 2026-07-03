@@ -67,6 +67,9 @@ Optional inputs:
 * `MLFLOW_EXPERIMENT_NAME`: MLflow experiment path/name
 * `MLFLOW_TRACKING_URI`: defaults to `databricks`
 * `MLFLOW_REGISTRY_URI`: defaults to `databricks-uc`
+* `DATABRICKS_HOST`: workspace URL, for example `https://dbc-0d6287ce-5988.cloud.databricks.com`
+* `DATABRICKS_SECRET_SCOPE`: secret scope used to fetch the Databricks PAT with `dbutils.secrets`
+* `DATABRICKS_SECRET_KEY`: secret key that stores the Databricks PAT
 * `MLFLOW_MODEL_ARTIFACT`: defaults to `fraud-model`
 * `VALIDATION_FRACTION`: defaults to `0.2`
 * `RANDOM_STATE`: defaults to `42`
@@ -79,6 +82,9 @@ Example:
 FEATURE_TABLE=main.risk.feature_store_transacoes \
 REGISTERED_MODEL_NAME=main.risk.fraud_model \
 MLFLOW_EXPERIMENT_NAME=/Shared/fraud-training \
+DATABRICKS_HOST=https://dbc-0d6287ce-5988.cloud.databricks.com \
+DATABRICKS_SECRET_SCOPE=mlops \
+DATABRICKS_SECRET_KEY=databricks-pat \
 python3 train.py
 ```
 
@@ -109,6 +115,9 @@ Optional inputs:
 * `MODEL_ALIAS`: defaults to `champion`
 * `MLFLOW_TRACKING_URI`: defaults to `databricks`
 * `MLFLOW_REGISTRY_URI`: defaults to `databricks-uc`
+* `DATABRICKS_HOST`: workspace URL
+* `DATABRICKS_SECRET_SCOPE`: secret scope used to fetch the Databricks PAT with `dbutils.secrets`
+* `DATABRICKS_SECRET_KEY`: secret key that stores the Databricks PAT
 * `FRAUD_THRESHOLD`: defaults to `0.5`
 * `MODEL_OUTPUT_WRITE_MODE`: `append` or `overwrite`, default `append`
 
@@ -118,6 +127,9 @@ Example:
 FEATURE_TABLE=main.risk.feature_store_transacoes \
 REGISTERED_MODEL_NAME=main.risk.fraud_model \
 MODEL_OUTPUT_TABLE=main.risk.model_output \
+DATABRICKS_HOST=https://dbc-0d6287ce-5988.cloud.databricks.com \
+DATABRICKS_SECRET_SCOPE=mlops \
+DATABRICKS_SECRET_KEY=databricks-pat \
 python3 predict.py
 ```
 

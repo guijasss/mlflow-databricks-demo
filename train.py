@@ -7,6 +7,7 @@ import os
 from pyspark.sql import SparkSession, functions as F
 from sklearn.model_selection import train_test_split
 
+from src.databricks_auth import configure_databricks_auth
 from src.features import FEATURE_COLUMNS, TARGET_COLUMN
 from src.model_registry import (
     PRIMARY_METRIC,
@@ -56,6 +57,21 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("MLFLOW_REGISTRY_URI", "databricks-uc"),
     )
     parser.add_argument(
+        "--databricks-host",
+        default=os.getenv("DATABRICKS_HOST"),
+        help="Workspace URL do Databricks, sem token.",
+    )
+    parser.add_argument(
+        "--databricks-secret-scope",
+        default=os.getenv("DATABRICKS_SECRET_SCOPE"),
+        help="Secret scope com o token de acesso do Databricks.",
+    )
+    parser.add_argument(
+        "--databricks-secret-key",
+        default=os.getenv("DATABRICKS_SECRET_KEY"),
+        help="Chave do secret que contem o token do Databricks.",
+    )
+    parser.add_argument(
         "--model-artifact-name",
         default=os.getenv("MLFLOW_MODEL_ARTIFACT", "fraud-model"),
     )
@@ -99,6 +115,12 @@ def main() -> None:
 
     args = parse_args()
     spark = SparkSession.builder.getOrCreate()
+    configure_databricks_auth(
+        spark,
+        host=args.databricks_host,
+        token_secret_scope=args.databricks_secret_scope,
+        token_secret_key=args.databricks_secret_key,
+    )
 
     labeled_df = load_labeled_dataset(
         spark=spark,

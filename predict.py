@@ -7,6 +7,7 @@ import os
 import pandas as pd
 from pyspark.sql import SparkSession, functions as F
 
+from src.databricks_auth import configure_databricks_auth
 from src.features import FEATURE_COLUMNS, METADATA_COLUMNS, TARGET_COLUMN
 from src.model_registry import (
     CHAMPION_ALIAS,
@@ -57,6 +58,21 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("MLFLOW_REGISTRY_URI", "databricks-uc"),
     )
     parser.add_argument(
+        "--databricks-host",
+        default=os.getenv("DATABRICKS_HOST"),
+        help="Workspace URL do Databricks, sem token.",
+    )
+    parser.add_argument(
+        "--databricks-secret-scope",
+        default=os.getenv("DATABRICKS_SECRET_SCOPE"),
+        help="Secret scope com o token de acesso do Databricks.",
+    )
+    parser.add_argument(
+        "--databricks-secret-key",
+        default=os.getenv("DATABRICKS_SECRET_KEY"),
+        help="Chave do secret que contem o token do Databricks.",
+    )
+    parser.add_argument(
         "--threshold",
         type=float,
         default=float(os.getenv("FRAUD_THRESHOLD", "0.5")),
@@ -86,6 +102,12 @@ def main() -> None:
 
     args = parse_args()
     spark = SparkSession.builder.getOrCreate()
+    configure_databricks_auth(
+        spark,
+        host=args.databricks_host,
+        token_secret_scope=args.databricks_secret_scope,
+        token_secret_key=args.databricks_secret_key,
+    )
 
     configure_mlflow(
         tracking_uri=args.tracking_uri,

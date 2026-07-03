@@ -5,7 +5,7 @@ description = "Local end-to-end MLOps laboratory aligned with a Databricks and M
 requires-python = ">=3.13"
 dependencies = [
     "mlflow>=3.0.0",
-    "pandas>=3.0.3",
+    "pandas>=2.2.3,<3",
     "pyspark>=4.1.2",
     "scikit-learn>=1.9.0",
     "xgboost>=3.3.0",
