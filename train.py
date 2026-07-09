@@ -7,8 +7,15 @@ import os
 from pyspark.sql import SparkSession, functions as F
 from sklearn.model_selection import train_test_split
 
+from src.audit import (
+    build_split_mlflow_dataset,
+    compute_feature_set_digest,
+    load_table_snapshot,
+    persist_split_snapshots,
+    resolve_table_snapshot,
+)
 from src.databricks_auth import configure_databricks_auth
-from src.features import FEATURE_COLUMNS, TARGET_COLUMN
+from src.features import FEATURE_COLUMNS, METADATA_COLUMNS, TARGET_COLUMN
 from src.model_registry import (
     PRIMARY_METRIC,
     compare_challenger_vs_champion,
@@ -81,6 +88,12 @@ def parse_args() -> argparse.Namespace:
         default=float(os.getenv("VALIDATION_FRACTION", "0.2")),
     )
     parser.add_argument(
+        "--test-fraction",
+        type=float,
+        default=float(os.getenv("TEST_FRACTION", "0.1")),
+        help="Fracao do dataset reservada para teste/auditoria.",
+    )
+    parser.add_argument(
         "--random-state",
         type=int,
         default=int(os.getenv("RANDOM_STATE", "42")),
@@ -95,20 +108,88 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("PROMOTION_METRIC", PRIMARY_METRIC),
         help="Metrica para comparar challenger e champion.",
     )
+    parser.add_argument(
+        "--feature-table-version",
+        type=int,
+        default=(
+            int(os.getenv("FEATURE_TABLE_VERSION"))
+            if os.getenv("FEATURE_TABLE_VERSION")
+            else None
+        ),
+        help="Versao Delta da feature table a ser usada no treino.",
+    )
+    parser.add_argument(
+        "--split-volume-path",
+        default=os.getenv("TRAINING_SPLIT_VOLUME_PATH"),
+        help="Path em Volume para persistir os snapshots de train/validation/test.",
+    )
     return parser.parse_args()
 
 
 def load_labeled_dataset(
     spark: SparkSession,
     feature_table: str,
+    *,
+    feature_table_version: int | None = None,
 ):
 
     return (
-        spark.table(feature_table)
+        load_table_snapshot(
+            spark,
+            feature_table,
+            version=feature_table_version,
+        )
         .where(F.col(TARGET_COLUMN).isNotNull())
-        .select(*(FEATURE_COLUMNS + [TARGET_COLUMN]))
+        .select(*(METADATA_COLUMNS + FEATURE_COLUMNS + [TARGET_COLUMN]))
         .toPandas()
     )
+
+
+def split_dataset(
+    labeled_df,
+    *,
+    validation_fraction: float,
+    test_fraction: float,
+    random_state: int,
+):
+
+    if validation_fraction <= 0 or validation_fraction >= 1:
+        raise ValueError("validation_fraction deve estar entre 0 e 1.")
+    if test_fraction < 0 or test_fraction >= 1:
+        raise ValueError("test_fraction deve estar entre 0 e 1.")
+    if validation_fraction + test_fraction >= 1:
+        raise ValueError(
+            "validation_fraction + test_fraction deve ser menor que 1."
+        )
+
+    stratify = labeled_df[TARGET_COLUMN]
+
+    if test_fraction == 0:
+        train_df, validation_df = train_test_split(
+            labeled_df,
+            test_size=validation_fraction,
+            random_state=random_state,
+            stratify=stratify,
+        )
+        return train_df, validation_df, validation_df.copy()
+
+    train_df, holdout_df = train_test_split(
+        labeled_df,
+        test_size=validation_fraction + test_fraction,
+        random_state=random_state,
+        stratify=stratify,
+    )
+
+    validation_share = validation_fraction / (
+        validation_fraction + test_fraction
+    )
+    validation_df, test_df = train_test_split(
+        holdout_df,
+        test_size=1 - validation_share,
+        random_state=random_state,
+        stratify=holdout_df[TARGET_COLUMN],
+    )
+    return train_df, validation_df, test_df
 
 
 def main() -> None:
@@ -122,9 +203,19 @@ def main() -> None:
         token_secret_key=args.databricks_secret_key,
     )
 
+    (
+        feature_table_version,
+        feature_table_timestamp,
+    ) = resolve_table_snapshot(
+        spark,
+        args.feature_table,
+        requested_version=args.feature_table_version,
+    )
+
     labeled_df = load_labeled_dataset(
         spark=spark,
         feature_table=args.feature_table,
+        feature_table_version=feature_table_version,
     )
     if labeled_df.empty:
         raise RuntimeError(
@@ -137,11 +228,11 @@ def main() -> None:
             "O treino requer exemplos positivos e negativos em 'fraude'."
         )
 
-    train_df, validation_df = train_test_split(
+    train_df, validation_df, test_df = split_dataset(
         labeled_df,
-        test_size=args.validation_fraction,
+        validation_fraction=args.validation_fraction,
+        test_fraction=args.test_fraction,
         random_state=args.random_state,
-        stratify=labeled_df[TARGET_COLUMN],
     )
 
     challenger = FraudModel().fit(train_df)
@@ -180,14 +271,94 @@ def main() -> None:
 
     signature = infer_model_signature(challenger, validation_df)
     input_example = validation_df.loc[:, FEATURE_COLUMNS].head(5)
+    feature_set_digest = compute_feature_set_digest()
 
     with mlflow.start_run(run_name="fraud-training") as run:
+        train_dataset = build_split_mlflow_dataset(
+            mlflow,
+            train_df,
+            table_name=args.feature_table,
+            split_name="train",
+            table_version=feature_table_version,
+        )
+        validation_dataset = build_split_mlflow_dataset(
+            mlflow,
+            validation_df,
+            table_name=args.feature_table,
+            split_name="validation",
+            table_version=feature_table_version,
+        )
+        test_dataset = build_split_mlflow_dataset(
+            mlflow,
+            test_df,
+            table_name=args.feature_table,
+            split_name="test",
+            table_version=feature_table_version,
+        )
+        mlflow.log_input(train_dataset, context="training")
+        mlflow.log_input(validation_dataset, context="validation")
+        mlflow.log_input(test_dataset, context="testing")
+
+        split_snapshot_manifest = None
+        if args.split_volume_path:
+            split_snapshot_manifest = persist_split_snapshots(
+                spark,
+                volume_path=args.split_volume_path,
+                run_id=run.info.run_id,
+                feature_table=args.feature_table,
+                feature_table_version=feature_table_version,
+                feature_table_timestamp=feature_table_timestamp,
+                split_dfs={
+                    "train": train_df,
+                    "validation": validation_df,
+                    "test": test_df,
+                },
+                extra_metadata={
+                    "registered_model_name": args.registered_model_name,
+                    "validation_fraction": args.validation_fraction,
+                    "test_fraction": args.test_fraction,
+                    "random_state": args.random_state,
+                },
+            )
+            mlflow.log_text(
+                json.dumps(
+                    split_snapshot_manifest,
+                    indent=2,
+                    sort_keys=True,
+                ),
+                "audit/split_snapshot_manifest.json",
+            )
+
         mlflow.log_param("feature_table", args.feature_table)
+        mlflow.log_param("feature_table_version", feature_table_version)
+        mlflow.log_param(
+            "feature_table_timestamp",
+            feature_table_timestamp,
+        )
         mlflow.log_param("registered_model_name", args.registered_model_name)
         mlflow.log_param("validation_fraction", args.validation_fraction)
+        mlflow.log_param("test_fraction", args.test_fraction)
         mlflow.log_param("threshold", args.threshold)
         mlflow.log_param("promotion_metric", args.promotion_metric)
+        mlflow.log_param("feature_set_digest", feature_set_digest)
+        mlflow.log_param(
+            "split_volume_path",
+            args.split_volume_path or "None",
+        )
         mlflow.log_params(challenger.classifier_params)
+        mlflow.log_text(
+            json.dumps(
+                {
+                    "feature_columns": FEATURE_COLUMNS,
+                    "metadata_columns": METADATA_COLUMNS,
+                    "target_column": TARGET_COLUMN,
+                    "feature_set_digest": feature_set_digest,
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            "audit/feature_spec.json",
+        )
         mlflow.log_metrics(
             {
                 f"challenger_{key}": value
@@ -214,6 +385,8 @@ def main() -> None:
             tags={
                 "model_role": "challenger",
                 "source_table": args.feature_table,
+                "source_table_version": str(feature_table_version),
+                "feature_set_digest": feature_set_digest,
             },
         )
 
@@ -251,6 +424,14 @@ def main() -> None:
                 "promoted_to_champion": comparison.promoted,
                 "previous_champion_version": champion_version or "None",
                 "source_table": args.feature_table,
+                "source_table_version": feature_table_version,
+                "source_table_timestamp": feature_table_timestamp or "None",
+                "feature_set_digest": feature_set_digest,
+                "split_snapshot_manifest": (
+                    split_snapshot_manifest["manifest_path"]
+                    if split_snapshot_manifest is not None
+                    else "None"
+                ),
             },
         )
 
@@ -261,10 +442,15 @@ def main() -> None:
         "registered_model_name": args.registered_model_name,
         "challenger_version": model_version.version,
         "previous_champion_version": champion_version,
+        "feature_table_version": feature_table_version,
+        "feature_table_timestamp": feature_table_timestamp,
         "promotion_metric": args.promotion_metric,
         "challenger_metrics": challenger_metrics,
         "champion_metrics": champion_metrics,
         "promoted_to_champion": comparison.promoted,
+        "train_rows": int(len(train_df)),
+        "validation_rows": int(len(validation_df)),
+        "test_rows": int(len(test_df)),
     }
     print(json.dumps(summary, indent=2, sort_keys=True))
 

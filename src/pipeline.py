@@ -44,6 +44,14 @@ DEFAULT_CLASSIFIER_PARAMS = {
     "random_state": 42,
 }
 
+MODEL_PIP_REQUIREMENTS = [
+    "mlflow>=3.0.0",
+    "pandas>=2.2.3,<3",
+    "scikit-learn>=1.9.0",
+    "xgboost>=3.3.0",
+    "cloudpickle>=3.0.0",
+]
+
 
 def _cast_boolean_columns(values):
 
@@ -271,6 +279,7 @@ class FraudModel:
                 signature=signature,
                 tags=tags,
                 params=params,
+                pip_requirements=MODEL_PIP_REQUIREMENTS,
             )
 
         with mlflow.start_run():
@@ -284,6 +293,7 @@ class FraudModel:
                 signature=signature,
                 tags=tags,
                 params=params,
+                pip_requirements=MODEL_PIP_REQUIREMENTS,
             )
 
 

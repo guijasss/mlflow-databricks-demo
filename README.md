@@ -57,6 +57,14 @@ The repository also includes two executable entrypoints for a Databricks / MLflo
 
 Training loads only rows where `fraude IS NOT NULL`, trains a challenger model using the preprocessing from `src/pipeline.py`, registers it in MLflow / Databricks, compares it to the current `champion`, and promotes the challenger when it achieves a better validation metric. The primary promotion metric is `average_precision`.
 
+The training flow is audit-oriented:
+
+* reads a specific Delta snapshot of the feature table
+* creates `train`, `validation`, and `test` splits
+* logs the three splits in MLflow with dataset lineage
+* optionally persists full split snapshots to a Databricks Volume for exact replay
+* tags the registered model version with source table version, feature-set digest, and split manifest path
+
 Required inputs:
 
 * `FEATURE_TABLE`: source feature store table
@@ -72,9 +80,12 @@ Optional inputs:
 * `DATABRICKS_SECRET_KEY`: secret key that stores the Databricks PAT
 * `MLFLOW_MODEL_ARTIFACT`: defaults to `fraud-model`
 * `VALIDATION_FRACTION`: defaults to `0.2`
+* `TEST_FRACTION`: defaults to `0.1`
 * `RANDOM_STATE`: defaults to `42`
 * `FRAUD_THRESHOLD`: defaults to `0.5`
 * `PROMOTION_METRIC`: defaults to `average_precision`
+* `FEATURE_TABLE_VERSION`: optional Delta version to replay a previous snapshot
+* `TRAINING_SPLIT_VOLUME_PATH`: optional Volume path such as `/Volumes/main/mlops/audit/fraud_splits`
 
 Example:
 
@@ -82,11 +93,18 @@ Example:
 FEATURE_TABLE=main.risk.feature_store_transacoes \
 REGISTERED_MODEL_NAME=main.risk.fraud_model \
 MLFLOW_EXPERIMENT_NAME=/Shared/fraud-training \
+TRAINING_SPLIT_VOLUME_PATH=/Volumes/main/mlops/audit/fraud_splits \
 DATABRICKS_HOST=https://dbc-0d6287ce-5988.cloud.databricks.com \
 DATABRICKS_SECRET_SCOPE=mlops \
 DATABRICKS_SECRET_KEY=databricks-pat \
 python3 train.py
 ```
+
+Training writes:
+
+* MLflow dataset inputs with contexts `training`, `validation`, and `testing`
+* MLflow artifacts `audit/feature_spec.json` and `audit/split_snapshot_manifest.json`
+* Volume snapshots under `TRAINING_SPLIT_VOLUME_PATH/run_id=<mlflow-run-id>/`
 
 ### `predict.py`
 
@@ -98,6 +116,12 @@ Output columns:
 * `model_name`
 * `model_alias`
 * `model_version`
+* `model_source_run_id`
+* `feature_table`
+* `feature_table_version`
+* `feature_table_timestamp`
+* `feature_set_digest`
+* `feature_vector_digest`
 * `id_transacao`
 * `id_cliente`
 * `fraud_probability`
@@ -120,6 +144,7 @@ Optional inputs:
 * `DATABRICKS_SECRET_KEY`: secret key that stores the Databricks PAT
 * `FRAUD_THRESHOLD`: defaults to `0.5`
 * `MODEL_OUTPUT_WRITE_MODE`: `append` or `overwrite`, default `append`
+* `FEATURE_TABLE_VERSION`: optional Delta version to replay a previous snapshot
 
 Example:
 
@@ -132,6 +157,17 @@ DATABRICKS_SECRET_SCOPE=mlops \
 DATABRICKS_SECRET_KEY=databricks-pat \
 python3 predict.py
 ```
+
+### Databricks Model Serving Audit
+
+For online serving, deploy the registered model in Databricks Model Serving and enable inference tables on the endpoint. The recommended pattern is:
+
+* serve the Unity Catalog model version selected by alias such as `champion`
+* enable inference tables in Unity Catalog
+* send a stable business identifier such as `id_transacao` as `client_request_id`
+* join the inference table with your feature and ground-truth tables for debugging and monitoring
+
+With this setup, Databricks captures request and response payloads plus endpoint metadata, including the model version used by each serving request.
 
 ## Databricks alignment
 

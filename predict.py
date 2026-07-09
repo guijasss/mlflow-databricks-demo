@@ -7,6 +7,12 @@ import os
 import pandas as pd
 from pyspark.sql import SparkSession, functions as F
 
+from src.audit import (
+    compute_dataframe_digest,
+    compute_feature_set_digest,
+    load_table_snapshot,
+    resolve_table_snapshot,
+)
 from src.databricks_auth import configure_databricks_auth
 from src.features import FEATURE_COLUMNS, METADATA_COLUMNS, TARGET_COLUMN
 from src.model_registry import (
@@ -82,16 +88,32 @@ def parse_args() -> argparse.Namespace:
         default=os.getenv("MODEL_OUTPUT_WRITE_MODE", "append"),
         choices=["append", "overwrite"],
     )
+    parser.add_argument(
+        "--feature-table-version",
+        type=int,
+        default=(
+            int(os.getenv("FEATURE_TABLE_VERSION"))
+            if os.getenv("FEATURE_TABLE_VERSION")
+            else None
+        ),
+        help="Versao Delta da feature table usada na inferencia batch.",
+    )
     return parser.parse_args()
 
 
 def load_unlabeled_dataset(
     spark: SparkSession,
     feature_table: str,
+    *,
+    feature_table_version: int | None = None,
 ) -> pd.DataFrame:
 
     return (
-        spark.table(feature_table)
+        load_table_snapshot(
+            spark,
+            feature_table,
+            version=feature_table_version,
+        )
         .where(F.col(TARGET_COLUMN).isNull())
         .select(*(METADATA_COLUMNS + FEATURE_COLUMNS))
         .toPandas()
@@ -107,6 +129,14 @@ def main() -> None:
         host=args.databricks_host,
         token_secret_scope=args.databricks_secret_scope,
         token_secret_key=args.databricks_secret_key,
+    )
+    (
+        feature_table_version,
+        feature_table_timestamp,
+    ) = resolve_table_snapshot(
+        spark,
+        args.feature_table,
+        requested_version=args.feature_table_version,
     )
 
     configure_mlflow(
@@ -132,10 +162,12 @@ def main() -> None:
     inference_df = load_unlabeled_dataset(
         spark=spark,
         feature_table=args.feature_table,
+        feature_table_version=feature_table_version,
     )
     if inference_df.empty:
         summary = {
             "feature_table": args.feature_table,
+            "feature_table_version": feature_table_version,
             "output_table": args.output_table,
             "rows_written": 0,
             "model_alias": args.model_alias,
@@ -153,6 +185,8 @@ def main() -> None:
 
     scores = model.predict_proba(inference_df)
     labels = scores >= args.threshold
+    feature_set_digest = compute_feature_set_digest()
+    model_source_run_id = getattr(model_version, "run_id", None)
     output_df = pd.DataFrame(
         {
             "prediction_timestamp": pd.Timestamp.now(
@@ -161,6 +195,15 @@ def main() -> None:
             "model_name": args.registered_model_name,
             "model_alias": args.model_alias,
             "model_version": str(model_version.version),
+            "model_source_run_id": model_source_run_id,
+            "feature_table": args.feature_table,
+            "feature_table_version": (
+                str(feature_table_version)
+                if feature_table_version is not None
+                else None
+            ),
+            "feature_table_timestamp": feature_table_timestamp,
+            "feature_set_digest": feature_set_digest,
             "id_transacao": inference_df["id_transacao"],
             "id_cliente": inference_df["id_cliente"],
             "fraud_probability": scores,
@@ -171,6 +214,13 @@ def main() -> None:
             ],
         }
     )
+    output_df["feature_vector_digest"] = inference_df.apply(
+        lambda row: compute_dataframe_digest(
+            pd.DataFrame([row]),
+            columns=FEATURE_COLUMNS,
+        ),
+        axis=1,
+    )
 
     spark.createDataFrame(output_df).write.mode(
         args.write_mode
@@ -178,6 +228,7 @@ def main() -> None:
 
     summary = {
         "feature_table": args.feature_table,
+        "feature_table_version": feature_table_version,
         "output_table": args.output_table,
         "rows_written": int(len(output_df)),
         "model_alias": args.model_alias,
