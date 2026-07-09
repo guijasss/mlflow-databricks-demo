@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import tempfile
+from pathlib import Path
 
 from pyspark.sql import SparkSession, functions as F
 from sklearn.model_selection import train_test_split
@@ -360,21 +362,34 @@ def main() -> None:
             "audit/feature_spec.json",
         )
         feature_importance_df = challenger.feature_importance()
-        mlflow.log_table(
-            feature_importance_df,
-            "explainability/feature_importance.json",
+        top_feature = feature_importance_df.iloc[0].to_dict()
+        top_10_feature_importance = feature_importance_df.head(10).to_dict(
+            orient="records"
         )
-        mlflow.log_text(
-            feature_importance_df.to_csv(index=False),
-            "explainability/feature_importance.csv",
-        )
-        mlflow.log_text(
-            feature_importance_df.head(25).to_json(
+        with tempfile.TemporaryDirectory() as tmpdir:
+            explainability_dir = Path(tmpdir) / "explainability"
+            explainability_dir.mkdir()
+            feature_importance_df.to_json(
+                explainability_dir / "feature_importance.json",
                 orient="records",
                 indent=2,
-            ),
-            "explainability/top_feature_importance.json",
-        )
+            )
+            feature_importance_df.to_csv(
+                explainability_dir / "feature_importance.csv",
+                index=False,
+            )
+            (explainability_dir / "top_feature_importance.json").write_text(
+                json.dumps(
+                    top_10_feature_importance,
+                    indent=2,
+                    sort_keys=True,
+                ),
+                encoding="utf-8",
+            )
+            mlflow.log_artifacts(
+                str(explainability_dir),
+                artifact_path="explainability",
+            )
         mlflow.log_metrics(
             {
                 f"challenger_{key}": value
@@ -464,6 +479,8 @@ def main() -> None:
         "challenger_metrics": challenger_metrics,
         "champion_metrics": champion_metrics,
         "promoted_to_champion": comparison.promoted,
+        "top_feature_name": top_feature["feature_name"],
+        "top_feature_importance": top_feature["importance"],
         "train_rows": int(len(train_df)),
         "validation_rows": int(len(validation_df)),
         "test_rows": int(len(test_df)),
