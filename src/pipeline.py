@@ -246,6 +246,31 @@ class FraudModel:
         return self.pipeline.predict_proba(X)[:, 1]
 
 
+    def feature_importance(self) -> pd.DataFrame:
+
+        self._ensure_fitted()
+
+        preprocessor = self.pipeline.named_steps["preprocessor"]
+        classifier = self.pipeline.named_steps["classifier"]
+
+        feature_names = preprocessor.get_feature_names_out()
+        importances = classifier.feature_importances_
+
+        return (
+            pd.DataFrame(
+                {
+                    "feature_name": feature_names,
+                    "importance": importances,
+                }
+            )
+            .sort_values(
+                "importance",
+                ascending=False,
+                ignore_index=True,
+            )
+        )
+
+
     def log_model(
         self,
         artifact_path: str = "fraud-model",

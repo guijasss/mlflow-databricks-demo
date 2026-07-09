@@ -14,3 +14,7 @@ wheels/
 .env.*
 !.env.example
 uv.lock
+
+# Test files
+data.json
+NOTES.md

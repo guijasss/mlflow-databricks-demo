@@ -359,6 +359,22 @@ def main() -> None:
             ),
             "audit/feature_spec.json",
         )
+        feature_importance_df = challenger.feature_importance()
+        mlflow.log_table(
+            feature_importance_df,
+            "explainability/feature_importance.json",
+        )
+        mlflow.log_text(
+            feature_importance_df.to_csv(index=False),
+            "explainability/feature_importance.csv",
+        )
+        mlflow.log_text(
+            feature_importance_df.head(25).to_json(
+                orient="records",
+                indent=2,
+            ),
+            "explainability/top_feature_importance.json",
+        )
         mlflow.log_metrics(
             {
                 f"challenger_{key}": value
