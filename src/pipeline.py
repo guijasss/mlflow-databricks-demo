@@ -8,14 +8,13 @@ ColumnTransformer etc.
 
 from __future__ import annotations
 
-from pathlib import Path
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer
 from sklearn.exceptions import NotFittedError
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import FunctionTransformer, OneHotEncoder
+from sklearn.preprocessing import OneHotEncoder
 from sklearn.utils.validation import check_is_fitted
 from typing import Any, TYPE_CHECKING
 
@@ -52,15 +51,6 @@ MODEL_PIP_REQUIREMENTS = [
     "xgboost>=3.3.0",
     "cloudpickle>=3.0.0",
 ]
-
-MODEL_CODE_PATHS = [
-    str(Path(__file__).resolve().parent.parent),
-]
-
-
-def _cast_boolean_columns(values):
-
-    return pd.DataFrame(values).fillna(False).astype("int8").to_numpy()
 
 
 def _import_mlflow():
@@ -116,10 +106,9 @@ class FraudModel:
         boolean_pipeline = Pipeline(
             steps=[
                 (
-                    "cast",
-                    FunctionTransformer(
-                        _cast_boolean_columns,
-                        feature_names_out="one-to-one",
+                    "encoder",
+                    OneHotEncoder(
+                        handle_unknown="ignore",
                     ),
                 )
             ]
@@ -285,7 +274,6 @@ class FraudModel:
                 tags=tags,
                 params=params,
                 pip_requirements=MODEL_PIP_REQUIREMENTS,
-                code_paths=MODEL_CODE_PATHS,
             )
 
         with mlflow.start_run():
@@ -300,7 +288,6 @@ class FraudModel:
                 tags=tags,
                 params=params,
                 pip_requirements=MODEL_PIP_REQUIREMENTS,
-                code_paths=MODEL_CODE_PATHS,
             )
 
 
