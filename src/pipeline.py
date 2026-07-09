@@ -8,6 +8,7 @@ ColumnTransformer etc.
 
 from __future__ import annotations
 
+from pathlib import Path
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.compose import ColumnTransformer
@@ -50,6 +51,10 @@ MODEL_PIP_REQUIREMENTS = [
     "scikit-learn>=1.9.0",
     "xgboost>=3.3.0",
     "cloudpickle>=3.0.0",
+]
+
+MODEL_CODE_PATHS = [
+    str(Path(__file__).resolve().parent.parent),
 ]
 
 
@@ -280,6 +285,7 @@ class FraudModel:
                 tags=tags,
                 params=params,
                 pip_requirements=MODEL_PIP_REQUIREMENTS,
+                code_paths=MODEL_CODE_PATHS,
             )
 
         with mlflow.start_run():
@@ -294,6 +300,7 @@ class FraudModel:
                 tags=tags,
                 params=params,
                 pip_requirements=MODEL_PIP_REQUIREMENTS,
+                code_paths=MODEL_CODE_PATHS,
             )
 
 
