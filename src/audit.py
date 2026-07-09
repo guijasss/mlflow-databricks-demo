@@ -81,18 +81,6 @@ def load_table_snapshot(
     )
 
 
-def build_dataset_source(
-    table_name: str,
-    *,
-    table_version: int | None = None,
-) -> str:
-
-    if table_version is None:
-        return f"databricks-table://{table_name}"
-
-    return f"databricks-table://{table_name}@v{table_version}"
-
-
 def build_split_mlflow_dataset(
     mlflow,
     split_df: pd.DataFrame,
@@ -102,13 +90,16 @@ def build_split_mlflow_dataset(
     table_version: int | None = None,
 ):
 
-    dataset_name = f"{table_name.replace('.', '_')}_{split_name}"
+    version_suffix = (
+        f"_v{table_version}"
+        if table_version is not None
+        else ""
+    )
+    dataset_name = (
+        f"{table_name.replace('.', '_')}_{split_name}{version_suffix}"
+    )
     return mlflow.data.from_pandas(
         split_df.loc[:, METADATA_COLUMNS + FEATURE_COLUMNS + [TARGET_COLUMN]],
-        source=build_dataset_source(
-            table_name,
-            table_version=table_version,
-        ),
         name=dataset_name,
         targets=TARGET_COLUMN,
     )
