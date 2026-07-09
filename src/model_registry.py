@@ -53,6 +53,15 @@ def configure_mlflow(
     mlflow, _ = _import_mlflow()
     mlflow.set_tracking_uri(tracking_uri)
     mlflow.set_registry_uri(registry_uri)
+    if (
+        tracking_uri == "databricks"
+        and not experiment_name
+    ):
+        raise ValueError(
+            "MLFLOW_EXPERIMENT_NAME ou --experiment-name eh obrigatorio "
+            "para treinos com tracking_uri='databricks'. Exemplo: "
+            "/Shared/fraud-training."
+        )
     if experiment_name:
         mlflow.set_experiment(experiment_name)
     return mlflow
@@ -206,9 +215,12 @@ def resolve_model_version_for_run(
 
     versions = [
         version for version in client.search_model_versions(
-            filter_string=f"run_id='{run_id}'"
+            filter_string=f"name = '{model_name}'"
         )
-        if version.name == model_name
+        if (
+            version.name == model_name
+            and getattr(version, "run_id", None) == run_id
+        )
     ]
 
     if not versions:
