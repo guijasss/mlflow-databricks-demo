@@ -129,7 +129,7 @@ def persist_split_snapshots(
         split_path = root_path / split_name
         spark.createDataFrame(
             split_df.loc[:, ordered_columns]
-        ).write.mode("overwrite").parquet(str(split_path))
+        ).coalesce(1).write.mode("overwrite").parquet(str(split_path))
         split_paths[split_name] = str(split_path)
         split_digests[split_name] = compute_dataframe_digest(
             split_df,
@@ -149,6 +149,7 @@ def persist_split_snapshots(
         "split_paths": split_paths,
         "split_digests": split_digests,
         "split_row_counts": split_row_counts,
+        "split_file_layout": "one_parquet_data_file_per_split_directory",
     }
     if extra_metadata:
         manifest.update(extra_metadata)
