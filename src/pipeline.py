@@ -53,6 +53,11 @@ MODEL_PIP_REQUIREMENTS = [
 ]
 
 
+def _cast_boolean_columns(values):
+
+    return pd.DataFrame(values).fillna(False).astype("int8").to_numpy()
+
+
 def _import_mlflow():
 
     try:
