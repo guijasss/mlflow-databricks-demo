@@ -1,0 +1,15 @@
+resources:
+  model_serving_endpoints:
+    fraud_detection_endpoint:
+      name: fraud-detection
+      config:
+        served_entities:
+          - name: fraud-detection-champion
+            entity_name: main.models.fraud_detection
+            entity_version: "1"
+            workload_size: Small
+            scale_to_zero_enabled: true
+        traffic_config:
+          routes:
+            - served_model_name: fraud-detection-champion
+              traffic_percentage: 100

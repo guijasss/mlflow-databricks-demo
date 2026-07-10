@@ -1,0 +1,9 @@
+bundle:
+  name: mlflow-databricks-demo
+
+include:
+  - resources/*.yml
+
+targets:
+  qas:
+    default: true

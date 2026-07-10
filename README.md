@@ -180,3 +180,34 @@ This implementation preserves the same responsibilities you would map into Datab
 * Model Serving maps to the HTTP service in `serving.py`
 
 The local abstractions are deliberately isolated so they can be replaced later with real Databricks and MLflow clients without rewriting the business flow.
+
+## Databricks Asset Bundle
+
+O projeto também contém um Databricks Asset Bundle em `databricks.yml`, com
+dois jobs baseados no repositório GitHub:
+
+* `feature_store`, com a task de notebook `gold_online_transactions`.
+* `model_training`, com a task Python `fraud_detection_model` e o ambiente
+  Databricks contendo as dependências de ML, seguida da atualização do
+  endpoint `fraud-detection` para o alias `champion`.
+
+O endpoint é declarado em `resources/serving_endpoint.yml`. Como a API de
+Model Serving exige uma versão numérica, a task `deploy_champion`, implementada
+em `src/deploy_champion.py`, resolve o alias `champion` no Unity Catalog e
+atualiza o endpoint para a versão apontada por ele. Assim, cada treinamento
+aprovado pode atualizar o serving endpoint sem versionar o artefato do modelo
+no Git.
+
+Para validar e publicar usando o Databricks CLI:
+
+```bash
+databricks bundle validate -t dev
+databricks bundle deploy -t dev
+databricks bundle run feature_store -t dev
+databricks bundle run model_training -t dev
+```
+
+O target `dev` usa `DATABRICKS_HOST` e o perfil/configuração do Databricks CLI
+para autenticação. Exporte `DATABRICKS_HOST=https://...` (e configure o token
+ou um profile) antes de publicar. Os jobs usam a branch `master` do repositório
+GitHub como origem do código.
