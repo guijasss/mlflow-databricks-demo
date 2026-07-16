@@ -2,7 +2,8 @@ bundle:
   name: mlflow-databricks-demo
 
 include:
-  - resources/*.yml
+  - resources/feature_store.yml
+  - resources/model_training.yml
 
 targets:
   qas:

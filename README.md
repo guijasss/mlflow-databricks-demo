@@ -188,15 +188,15 @@ dois jobs baseados no repositório GitHub:
 
 * `feature_store`, com a task de notebook `gold_online_transactions`.
 * `model_training`, com a task Python `fraud_detection_model` e o ambiente
-  Databricks contendo as dependências de ML, seguida da atualização do
-  endpoint `fraud-detection` para o alias `champion`.
+  Databricks contendo as dependências de ML, seguida da criação ou atualização
+  do endpoint `fraud-detection` para o alias `champion`.
 
-O endpoint é declarado em `resources/serving_endpoint.yml`. Como a API de
-Model Serving exige uma versão numérica, a task `deploy_champion`, implementada
-em `src/deploy_champion.py`, resolve o alias `champion` no Unity Catalog e
-atualiza o endpoint para a versão apontada por ele. Assim, cada treinamento
-aprovado pode atualizar o serving endpoint sem versionar o artefato do modelo
-no Git.
+O endpoint não faz parte do deploy padrão do bundle, porque depende de uma
+versão de modelo já registrada e em estado `READY`. A task `deploy_champion`,
+implementada em `src/deploy_champion.py`, resolve o alias `champion` no Unity
+Catalog e aplica o estado desejado de forma idempotente: cria o endpoint quando
+ele ainda não existe, atualiza quando aponta para outra versão e não altera nada
+quando já serve a versão champion atual.
 
 Para validar e publicar usando o Databricks CLI:
 
