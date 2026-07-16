@@ -1,0 +1,134 @@
+name: Databricks Bundle
+
+on:
+  pull_request:
+    branches:
+      - qas
+      - master
+  push:
+    tags:
+      - qas-*
+      - prd-*
+      - prod-*
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Bundle target to deploy.
+        required: true
+        type: choice
+        options:
+          - qas
+          - prd
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  DATABRICKS_AUTH_TYPE: github-oidc
+  DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+  DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+
+jobs:
+  validate-qas:
+    name: Validate QAS
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.base.ref == 'qas' &&
+      github.event.pull_request.head.ref == 'development'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run Python syntax checks
+        run: python -m compileall train.py predict.py src
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Validate Databricks bundle
+        run: databricks bundle validate --target qas
+
+  validate-prd:
+    name: Validate PRD
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.base.ref == 'master' &&
+      github.event.pull_request.head.ref == 'qas'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run Python syntax checks
+        run: python -m compileall train.py predict.py src
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Validate Databricks bundle
+        run: databricks bundle validate --target prd
+
+  deploy-qas:
+    name: Deploy QAS
+    if: >
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/qas-')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'qas')
+    runs-on: ubuntu-latest
+    environment: qas
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag belongs to qas
+        if: github.event_name == 'push'
+        run: |
+          git fetch origin qas
+          TAG_COMMIT=$(git rev-list -n 1 "$GITHUB_REF_NAME")
+          git merge-base --is-ancestor "$TAG_COMMIT" origin/qas
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Validate Databricks bundle
+        run: databricks bundle validate --target qas
+
+      - name: Deploy Databricks bundle
+        run: databricks bundle deploy --target qas
+
+  deploy-prd:
+    name: Deploy PRD
+    if: >
+      (github.event_name == 'push' &&
+        (startsWith(github.ref, 'refs/tags/prd-') || startsWith(github.ref, 'refs/tags/prod-'))) ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == 'prd')
+    runs-on: ubuntu-latest
+    environment: prd
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify tag belongs to master
+        if: github.event_name == 'push'
+        run: |
+          git fetch origin master
+          TAG_COMMIT=$(git rev-list -n 1 "$GITHUB_REF_NAME")
+          git merge-base --is-ancestor "$TAG_COMMIT" origin/master
+
+      - name: Install Databricks CLI
+        uses: databricks/setup-cli@main
+
+      - name: Validate Databricks bundle
+        run: databricks bundle validate --target prd
+
+      - name: Deploy Databricks bundle
+        run: databricks bundle deploy --target prd

@@ -4,7 +4,23 @@ bundle:
 include:
   - resources/feature_store.yml
   - resources/model_training.yml
+  - resources/unity_catalog.yml
+
+variables:
+  catalog:
+    description: Catalogo Unity Catalog usado por tabelas, modelos e volumes.
+    default: qas_main
+  endpoint_name:
+    description: Nome do Model Serving endpoint.
+    default: fraud-detection-qas
 
 targets:
   qas:
     default: true
+    variables:
+      catalog: qas_main
+      endpoint_name: fraud-detection-qas
+  prd:
+    variables:
+      catalog: prd_main
+      endpoint_name: fraud-detection-prd

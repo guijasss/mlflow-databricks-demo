@@ -1,0 +1,15 @@
+resources:
+  schemas:
+    feature_store_schema:
+      catalog_name: ${var.catalog}
+      name: feature_store
+    models_schema:
+      catalog_name: ${var.catalog}
+      name: models
+
+  volumes:
+    model_audit_volume:
+      catalog_name: ${var.catalog}
+      schema_name: models
+      name: audit
+      volume_type: MANAGED

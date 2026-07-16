@@ -201,13 +201,46 @@ quando já serve a versão champion atual.
 Para validar e publicar usando o Databricks CLI:
 
 ```bash
-databricks bundle validate -t dev
-databricks bundle deploy -t dev
-databricks bundle run feature_store -t dev
-databricks bundle run model_training -t dev
+databricks bundle validate -t qas
+databricks bundle deploy -t qas
+databricks bundle run feature_store -t qas
+databricks bundle run model_training -t qas
 ```
 
-O target `dev` usa `DATABRICKS_HOST` e o perfil/configuração do Databricks CLI
-para autenticação. Exporte `DATABRICKS_HOST=https://...` (e configure o token
-ou um profile) antes de publicar. Os jobs usam a branch `master` do repositório
-GitHub como origem do código.
+### CI/CD com GitHub Actions
+
+O workflow `.github/workflows/databricks-bundle.yml` valida e publica o bundle
+com dois targets no mesmo workspace:
+
+* `qas`, usando o catalogo `qas_main` e o endpoint `fraud-detection-qas`.
+* `prd`, usando o catalogo `prd_main` e o endpoint `fraud-detection-prd`.
+
+Pull requests de `development` para `qas` executam os checks Python e
+`databricks bundle validate --target qas`. Pull requests de `qas` para `master`
+executam os mesmos checks para `prd`. Tags `qas-*` fazem deploy em QAS, desde
+que o commit tagueado pertença à branch `qas`; tags `prd-*` ou `prod-*` fazem
+deploy em PRD, desde que o commit tagueado pertença à branch `master`.
+
+O workflow usa autenticação OIDC do GitHub Actions com Databricks. Configure no
+GitHub as variáveis `DATABRICKS_HOST` e `DATABRICKS_CLIENT_ID`, e habilite os
+environments `qas` e `prd` se quiser aprovações manuais antes do deploy.
+
+Fluxo recomendado de promoção:
+
+```bash
+# depois do merge development -> qas
+git checkout qas
+git pull origin qas
+git tag qas-v0.1.0
+git push origin qas-v0.1.0
+
+# depois da aceitacao em QAS, abra PR qas -> master e faca merge sem squash
+git checkout master
+git pull origin master
+git tag prd-v0.1.0 qas-v0.1.0
+git push origin prd-v0.1.0
+```
+
+Criar a tag `prd-*` apontando para a tag `qas-*` garante que PRD implante o
+mesmo commit aprovado em QAS. O merge `qas -> master` precisa preservar esse
+commit no historico de `master`; por isso, evite squash/rebase nesse fluxo.

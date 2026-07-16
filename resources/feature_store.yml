@@ -1,16 +1,14 @@
 resources:
   jobs:
     feature_store:
-      name: feature_store
+      name: ${bundle.target}_feature_store
       tasks:
         - task_key: gold_online_transactions
           notebook_task:
-            notebook_path: src/feature_store
-            source: GIT
-      git_source:
-        git_url: https://github.com/guijasss/mlflow-databricks-demo.git
-        git_provider: gitHub
-        git_branch: master
+            notebook_path: ../src/feature_store.ipynb
+            base_parameters:
+              catalog: ${var.catalog}
+            source: WORKSPACE
       queue:
         enabled: true
       performance_target: PERFORMANCE_OPTIMIZED

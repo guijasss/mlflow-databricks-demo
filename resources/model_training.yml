@@ -1,16 +1,16 @@
 resources:
   jobs:
     model_training:
-      name: model_training
+      name: ${bundle.target}_model_training
       tasks:
         - task_key: fraud_detection_model
           spark_python_task:
-            python_file: train.py
+            python_file: ../train.py
             parameters:
               - --feature-table
-              - main.feature_store.online_transactions
+              - ${var.catalog}.feature_store.online_transactions
               - --registered-model-name
-              - main.models.fraud_detection
+              - ${var.catalog}.models.fraud_detection
               - --databricks-host
               - https://dbc-0d6287ce-5988.cloud.databricks.com
               - --databricks-secret-scope
@@ -20,27 +20,23 @@ resources:
               - --experiment-name
               - /Shared/fraud-training
               - --split-volume-path
-              - /Volumes/main/models/audit
-            source: GIT
+              - /Volumes/${var.catalog}/models/audit
+            source: WORKSPACE
           environment_key: Default
         - task_key: deploy_champion
           depends_on:
             - task_key: fraud_detection_model
           spark_python_task:
-            python_file: src/deploy_champion.py
+            python_file: ../src/deploy_champion.py
             parameters:
               - --registered-model-name
-              - main.models.fraud_detection
+              - ${var.catalog}.models.fraud_detection
               - --model-alias
               - champion
               - --endpoint-name
-              - fraud-detection
-            source: GIT
+              - ${var.endpoint_name}
+            source: WORKSPACE
           environment_key: Default
-      git_source:
-        git_url: https://github.com/guijasss/mlflow-databricks-demo.git
-        git_provider: gitHub
-        git_branch: master
       queue:
         enabled: true
       environments:
