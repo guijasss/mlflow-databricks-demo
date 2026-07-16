@@ -26,17 +26,18 @@ permissions:
 
 env:
   DATABRICKS_AUTH_TYPE: github-oidc
-  DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
-  DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
 
 jobs:
   validate-qas:
     name: Validate QAS
     if: >
       github.event_name == 'pull_request' &&
-      github.event.pull_request.base.ref == 'qas' &&
-      github.event.pull_request.head.ref == 'development'
+      github.event.pull_request.base.ref == 'qas'
     runs-on: ubuntu-latest
+    environment: qas
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -60,6 +61,10 @@ jobs:
       github.event.pull_request.base.ref == 'master' &&
       github.event.pull_request.head.ref == 'qas'
     runs-on: ubuntu-latest
+    environment: prd
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +88,9 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.target == 'qas')
     runs-on: ubuntu-latest
     environment: qas
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -112,6 +120,9 @@ jobs:
       (github.event_name == 'workflow_dispatch' && inputs.target == 'prd')
     runs-on: ubuntu-latest
     environment: prd
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
         with:
