@@ -34,8 +34,7 @@ jobs:
     name: Validate QAS
     if: >
       github.event_name == 'pull_request' &&
-      github.event.pull_request.base.ref == 'qas' &&
-      github.event.pull_request.head.ref == 'development'
+      github.event.pull_request.base.ref == 'qas'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

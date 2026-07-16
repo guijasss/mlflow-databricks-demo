@@ -11,17 +11,18 @@ Os targets ficam definidos em `databricks.yml`, e o workflow fica em
 
 ## Branches
 
-* `development`: branch de desenvolvimento.
+* `development`: branch de desenvolvimento compartilhada, quando usada.
+* `feat/*`: branches de feature.
 * `qas`: branch de homologacao.
 * `master`: branch de producao.
 
 O fluxo esperado e:
 
 ```text
-development -> qas -> master
+development ou feat/* -> qas -> master
 ```
 
-## Pull request de development para qas
+## Pull request para qas
 
 Trigger:
 
@@ -35,7 +36,7 @@ Condicao do job:
 
 ```text
 base = qas
-head = development
+head = qualquer branch
 ```
 
 Job executado:
@@ -239,7 +240,7 @@ O service principal configurado no Databricks precisa ter permissao para:
 Fluxo completo:
 
 ```text
-1. Abrir PR development -> qas.
+1. Abrir PR development -> qas ou feat/* -> qas.
 2. Validar e aprovar a PR.
 3. Fazer merge em qas.
 4. Criar tag qas-* no commit de qas.

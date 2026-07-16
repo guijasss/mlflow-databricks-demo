@@ -215,11 +215,11 @@ com dois targets no mesmo workspace:
 * `qas`, usando o catalogo `qas_main` e o endpoint `fraud-detection-qas`.
 * `prd`, usando o catalogo `prd_main` e o endpoint `fraud-detection-prd`.
 
-Pull requests de `development` para `qas` executam os checks Python e
-`databricks bundle validate --target qas`. Pull requests de `qas` para `master`
-executam os mesmos checks para `prd`. Tags `qas-*` fazem deploy em QAS, desde
-que o commit tagueado pertença à branch `qas`; tags `prd-*` ou `prod-*` fazem
-deploy em PRD, desde que o commit tagueado pertença à branch `master`.
+Pull requests para `qas`, incluindo branches `feat/*`, executam os checks
+Python e `databricks bundle validate --target qas`. Pull requests de `qas` para
+`master` executam os mesmos checks para `prd`. Tags `qas-*` fazem deploy em QAS,
+desde que o commit tagueado pertença à branch `qas`; tags `prd-*` ou `prod-*`
+fazem deploy em PRD, desde que o commit tagueado pertença à branch `master`.
 
 O workflow usa autenticação OIDC do GitHub Actions com Databricks. Configure no
 GitHub as variáveis `DATABRICKS_HOST` e `DATABRICKS_CLIENT_ID`, e habilite os
@@ -228,7 +228,7 @@ environments `qas` e `prd` se quiser aprovações manuais antes do deploy.
 Fluxo recomendado de promoção:
 
 ```bash
-# depois do merge development -> qas
+# depois do merge para qas
 git checkout qas
 git pull origin qas
 git tag qas-v0.1.0
