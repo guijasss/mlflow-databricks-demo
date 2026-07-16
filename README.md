@@ -221,9 +221,10 @@ Python e `databricks bundle validate --target qas`. Pull requests de `qas` para
 desde que o commit tagueado pertença à branch `qas`; tags `prd-*` ou `prod-*`
 fazem deploy em PRD, desde que o commit tagueado pertença à branch `master`.
 
-O workflow usa autenticação OIDC do GitHub Actions com Databricks. Configure no
-GitHub as variáveis `DATABRICKS_HOST` e `DATABRICKS_CLIENT_ID`, e habilite os
-environments `qas` e `prd` se quiser aprovações manuais antes do deploy.
+O workflow usa autenticação OIDC do GitHub Actions com Databricks. Configure
+nos environments `qas` e `prd` a variavel `DATABRICKS_HOST` e o secret
+`DATABRICKS_CLIENT_ID`. Se esses environments tiverem aprovação manual, os jobs
+que usam esses valores também aguardam aprovação.
 
 Fluxo recomendado de promoção:
 

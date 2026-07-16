@@ -212,9 +212,12 @@ permissions:
   id-token: write
 ```
 
-Variaveis esperadas no GitHub:
+Variavel esperada em cada GitHub Environment (`qas` e `prd`):
 
 * `DATABRICKS_HOST`
+
+Secret esperado em cada GitHub Environment (`qas` e `prd`):
+
 * `DATABRICKS_CLIENT_ID`
 
 Variaveis de ambiente usadas pelo workflow:
@@ -222,7 +225,7 @@ Variaveis de ambiente usadas pelo workflow:
 ```yaml
 DATABRICKS_AUTH_TYPE: github-oidc
 DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST }}
-DATABRICKS_CLIENT_ID: ${{ vars.DATABRICKS_CLIENT_ID }}
+DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
 ```
 
 O service principal configurado no Databricks precisa ter permissao para:
